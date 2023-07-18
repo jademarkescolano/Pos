@@ -1,0 +1,266 @@
+﻿@page "/dashboard"
+@using System.Net.Http
+@using System.Net.Http.Json
+@using System.Net.Http.Headers
+@using Newtonsoft.Json;
+@inject HttpClient Http
+@inject NavigationManager NavigationManager
+@inject ILocalStorageService localstorage
+@inject IJSRuntime JSRuntime
+@inject ISnackbar Snackbar
+
+
+<MudToolBar>
+    <p1 style="font-family:Tahoma; font-size:20px;">DASHBOARD</p1>
+</MudToolBar>
+<br />
+
+<div class="row">
+    <div class="col-md-6">
+      
+        <MudCard Style="background-color:#30BFC1">
+            <MudCardContent>
+                <MudText Size="5">
+                    Total Registered Client
+                </MudText>
+                <MudCardContent>
+                    @totalclient
+                </MudCardContent>
+            </MudCardContent>
+        </MudCard> <br />
+
+        <MudCard Style="background-color:#FEAD46">
+            <MudCardContent>
+                <MudText Size="5">
+                    Total Income this month
+                </MudText>
+                <MudCardContent>
+                    ₱ @totalincomemonthly
+                </MudCardContent>
+            </MudCardContent>
+        </MudCard>
+    </div>
+    <div class="col-md-6">
+      
+        <MudCard Style="background-color:#1573E8">
+            <MudCardContent>
+                <MudText Size="5">
+                   Recent Transactions
+                </MudText>
+                <MudCardContent>
+                    @totaltoday
+                </MudCardContent>
+            </MudCardContent>
+        </MudCard> <br />
+
+        <MudCard Style="background-color:#46ABF6">
+            <MudCardContent>
+                <MudText Size="5">
+                    Today's total income
+                </MudText>
+                <MudCardContent>
+                    ₱ @totalincometoday
+                </MudCardContent>
+            </MudCardContent>
+        </MudCard>
+    </div>
+</div> <br />
+<br />
+
+<MudToolBar>
+    <p1 style="font-family:Tahoma; font-size:20px;">Transactions Today</p1>
+</MudToolBar>
+<br />
+<MudTable Class="ma-5" Dense="true" Hover="true" Items="@clientservicelist" Elevation="4"
+          FixedHeader="@fixed_header" FixedFooter="@fixed_footer"
+          Height="@(fixed_header || fixed_footer ?"500px": "")">
+
+    <HeaderContent>
+        <MudTh>
+
+       <MudTableSortLabel SortBy="new Func<clientservices, object>(c => c.date)" InitialDirection="MudBlazor.SortDirection.Descending">
+            Date
+            </MudTableSortLabel>
+        </MudTh>
+        <MudTh>Client Name</MudTh>
+        <MudTh>Employee Name</MudTh>
+        <MudTh>Service/s</MudTh>
+        <MudTh>Total Fee</MudTh>
+        <MudTh>Receipt #</MudTh>
+      
+    </HeaderContent>
+
+    <RowTemplate>
+        <MudTd DataLabel="Date">@context.date</MudTd>
+        <MudTd DataLabel="Client Name">@context.name</MudTd>
+        <MudTd DataLabel="Employee Name">@context.employee</MudTd>
+        <MudTd DataLabel="Service/s">@context.service</MudTd>
+        <MudTd DataLabel="Total Fee">@context.fee</MudTd>
+        <MudTd DataLabel="Receipt #">@context.receiptno</MudTd>
+      
+    </RowTemplate>
+
+    <PagerContent>
+        <MudTablePager PageSizeOptions="new int[]{10, 20, 50, 100, 200}" />
+    </PagerContent>
+</MudTable>
+<br />
+<br />
+
+@code
+{
+
+
+    [Parameter]
+    public client _client { get; set; } = new client();
+    clientservices[]? clientservicelist;
+
+    int totalclient;
+    int totaltoday;
+    int totalincometoday;
+    int totalincomemonthly;
+
+    bool fixed_header = true;
+    bool fixed_footer = false;
+
+    public async Task GetTotalClient()
+    {
+        using (HttpClient client = new HttpClient())
+        {
+            client.BaseAddress = new Uri(NavigationManager.BaseUri);
+            HttpResponseMessage response = await client.GetAsync("api/Client/TotalClient");
+            if (response.IsSuccessStatusCode)
+            {
+                string contentResponse = await response.Content.ReadAsStringAsync();
+                totalclient = JsonConvert.DeserializeObject<int>(contentResponse);
+                StateHasChanged();
+            }
+            else
+            {
+                StateHasChanged();
+            }
+        }
+    }
+
+    user[] userlist;
+    private async Task GetUser()
+    {
+
+
+        using (HttpClient client = new HttpClient())
+        {
+            client.BaseAddress = new Uri($"{NavigationManager.BaseUri}");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await localstorage.GetItemAsStringAsync("token"));
+            HttpResponseMessage response = await client.GetAsync($"api/User/User");
+            if (response.IsSuccessStatusCode)
+            {
+                string contentrespose = await response.Content.ReadAsStringAsync();
+                userlist = JsonConvert.DeserializeObject<user[]>(contentrespose);
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                NavigationManager.NavigateTo("/dashboarduser");
+            }
+        }
+    }
+
+    public async Task TodayTotalIncome()
+    {
+        using (HttpClient client = new HttpClient())
+        {
+            client.BaseAddress = new Uri($"{NavigationManager.BaseUri}");
+            HttpResponseMessage response = await client.GetAsync($"api/Income/TotalIncomeToday");
+            if (response.IsSuccessStatusCode)
+            {
+                string contentResponse = await response.Content.ReadAsStringAsync();
+                if (string.IsNullOrEmpty(contentResponse) || contentResponse == "null")
+                {
+                    totalincometoday = 0;
+                }
+                else
+                {
+                    totalincometoday = JsonConvert.DeserializeObject<int>(contentResponse);
+                }
+                StateHasChanged();
+            }
+        }
+    }
+
+
+    public async Task MonthlyTotalIncome()
+    {
+        using (HttpClient client = new HttpClient())
+        {
+            client.BaseAddress = new Uri($"{NavigationManager.BaseUri}");
+            HttpResponseMessage response = await client.GetAsync($"api/Income/TotalIncomeMonthly");
+            if (response.IsSuccessStatusCode)
+            {
+                string contentResponse = await response.Content.ReadAsStringAsync();
+                if (string.IsNullOrEmpty(contentResponse))
+                {
+                    totalincomemonthly = 0;
+                }
+                else
+                {
+                    totalincomemonthly = JsonConvert.DeserializeObject<int>(contentResponse);
+                }
+                StateHasChanged();
+            }
+            else
+            {
+
+                StateHasChanged();
+            }
+        }
+    }
+
+
+
+    public async Task TodayClient()
+    {
+        using (HttpClient client = new HttpClient())
+        {
+            client.BaseAddress = new Uri(NavigationManager.BaseUri);
+            HttpResponseMessage response = await client.GetAsync("api/ClientService/CountToday");
+            if (response.IsSuccessStatusCode)
+            {
+                string contentResponse = await response.Content.ReadAsStringAsync();
+                totaltoday = JsonConvert.DeserializeObject<int>(contentResponse);
+                StateHasChanged();
+            }
+            else
+            {
+                StateHasChanged();
+            }
+        }
+    }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetTotalClient();
+        await TodayClient();
+        await TodayTotalIncome();
+        await MonthlyTotalIncome();
+        StateHasChanged();
+
+    }
+
+
+    public async Task GetclientToday()
+    {
+        Http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await localstorage.GetItemAsStringAsync("token"));
+        clientservicelist = await Http.GetFromJsonAsync<clientservices[]>($"api/ClientService/ClientServiceToday");
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await GetUser();
+            await GetclientToday();
+            await InvokeAsync(() => StateHasChanged());
+        }
+    }
+}

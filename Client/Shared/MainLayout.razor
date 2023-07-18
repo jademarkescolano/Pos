@@ -1,0 +1,47 @@
+﻿@inherits LayoutComponentBase
+@inject ILocalStorageService localStorage
+@inject NavigationManager NavigationManager
+@inject ISnackbar Snackbar
+
+<MudThemeProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        
+        <MudAppBar Style="background-color:#01A4A7" Fixed="false"> 
+           
+            <MudIconButton Icon="@Icons.Material.Filled.PointOfSale" Color="MudBlazor.Color.Inherit" Edge="Edge.Start" />
+            <p1>POS</p1>
+            <MudSpacer />
+            <MudMenu Label="Menu" Dense="true" Icon="@Icons.Material.Filled.AccountCircle" Color="MudBlazor.Color.Inherit">
+                <MudMenuItem Icon="@Icons.Material.Filled.Logout" @onclick="logout">Logout</MudMenuItem>
+            </MudMenu>
+        </MudAppBar>
+       @* <div class="top-row px-4">
+           
+            <a href="https://docs.microsoft.com/aspnet/" target="_blank">About</a>
+        </div>*@
+       
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code
+{
+    public async void logout()
+    {
+        await localStorage.RemoveItemAsync("token");
+        if (await localStorage.GetItemAsStringAsync("token") == null)
+        {
+            NavigationManager.NavigateTo("/");
+        }
+    }
+}

@@ -1,0 +1,349 @@
+﻿@page "/employee"
+@using System.Net.Http
+@using System.Net.Http.Json
+@using System.Net.Http.Headers
+@using Newtonsoft.Json;
+@inject HttpClient Http
+@inject NavigationManager NavigationManager
+@inject ILocalStorageService localstorage
+@inject IJSRuntime JSRuntime
+@inject ISnackbar Snackbar
+
+
+<br />
+<br />
+<p1 style="font-family:Tahoma; font-size:20px;">ADD NEW CLIENT</p1>
+<br />
+
+<br />
+<br />
+<MudCard Elevation="4">
+    <MudCardContent>
+        <div class="container">
+            <div class="column">
+                <!--Column1-->
+
+                <MudTextField Clearable @bind-Value="_client.fname" Variant="Variant.Text" Margin="MudBlazor.Margin.Dense" Label="Enter First Name" />
+                <MudTextField Clearable @bind-Value="_client.mname" Variant="Variant.Text" Margin="MudBlazor.Margin.Dense" Label="Enter Middle Name" />
+                <MudTextField Clearable @bind-Value="_client.lname" Variant="Variant.Text" Margin="MudBlazor.Margin.Dense" Label="Enter Last Name" />
+            </div>
+            <div class="column">
+                <!--Column2-->
+                <MudTextField Clearable @bind-Value="_client.address" Variant="Variant.Text" Margin="MudBlazor.Margin.Dense" Label="Enter Address" />
+                <MudTextField Clearable @bind-Value="_client.contact" Variant="Variant.Text" Margin="MudBlazor.Margin.Dense" Label="Enter Contact" />
+                <MudToolBar>
+                    <MudSpacer />
+                    <MudButton Variant="Variant.Outlined" Color="MudBlazor.Color.Secondary" OnClick="Clear">Clear</MudButton> &nbsp;
+                    <MudButton Variant="Variant.Outlined" Color="MudBlazor.Color.Primary" OnClick="Save">Save</MudButton>
+                </MudToolBar>
+
+            </div>
+        </div>
+
+    </MudCardContent>
+</MudCard>
+
+<br />
+<br />
+<MudToolBar>
+    <MudButton Variant="Variant.Outlined" Color="MudBlazor.Color.Primary" @onclick="Refresh">Refresh</MudButton>
+    <MudSpacer />    <MudSpacer />    <MudSpacer />
+    <MudTextField @bind-Value="txtsearch"
+                    Clearable
+                  TextChanged="@SearchClient"
+                  Adornment="Adornment.End"
+                  AdornmentIcon="@Icons.Material.Filled.Search"
+                  Label="Search"
+                  Variant="Variant.Outlined"
+                  Margin="MudBlazor.Margin.Dense"
+                  Class="xsearch">
+    </MudTextField>
+</MudToolBar>
+<MudTable Class="ma-5" Dense="true" Hover="true" Items="@clientlist" Elevation="4"
+          FixedHeader="@fixed_header" FixedFooter="@fixed_footer"
+          Height="@(fixed_header || fixed_footer ?"500px": "")">
+
+    <HeaderContent>
+        <MudTh>ID #</MudTh>
+        <MudTh>Name</MudTh>
+        <MudTh>Address</MudTh>
+        <MudTh>Contact</MudTh>
+        <MudTh></MudTh>
+    </HeaderContent>
+
+    <RowTemplate>
+        <MudTd DataLabel="ID #">@context.clientid</MudTd>
+        <MudTd DataLabel="Name">@context.fullname</MudTd>
+        <MudTd DataLabel="Address">@context.address</MudTd>
+        <MudTd DataLabel="Contact">@context.contact</MudTd>
+        <MudTd>
+            <MudFab Color="MudBlazor.Color.Primary" StartIcon="@Icons.Material.Filled.Edit"
+            @onclick="(e => Edit(context.clientid))" Size="MudBlazor.Size.Small" />
+        </MudTd>
+    </RowTemplate>
+
+    <PagerContent>
+        <MudTablePager PageSizeOptions="new int[]{10, 20, 50, 100, 200}" />
+    </PagerContent>
+</MudTable>
+
+
+<style>
+    .container {
+        display: flex;
+    }
+
+    .column {
+        flex: 1;
+        padding: 10px;
+        box-sizing: border-box;
+    }
+</style>
+
+
+
+@code
+{
+    string txtsearch;
+    [Parameter]
+    public employees _client { get; set; } = new employees();
+    employees[]? clientlist;
+
+    bool fixed_header = true;
+    bool fixed_footer = false;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await GetUser();
+            await GetClient();
+            await InvokeAsync(() => StateHasChanged());
+            _transaction = "save";
+
+        }
+    }
+
+    user[] userlist;
+    private async Task GetUser()
+    {
+
+
+        using (HttpClient client = new HttpClient())
+        {
+            client.BaseAddress = new Uri($"{NavigationManager.BaseUri}");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await localstorage.GetItemAsStringAsync("token"));
+            HttpResponseMessage response = await client.GetAsync($"api/User/User");
+            if (response.IsSuccessStatusCode)
+            {
+                string contentrespose = await response.Content.ReadAsStringAsync();
+                userlist = JsonConvert.DeserializeObject<user[]>(contentrespose);
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                NavigationManager.NavigateTo("/auth403");
+            }
+        }
+    }
+
+    private async Task Refresh()
+    {
+        await GetClient();
+        await InvokeAsync(() => StateHasChanged());
+        _transaction = "save";
+    }
+
+    private async Task SearchClient()
+    {
+        if (string.IsNullOrWhiteSpace(txtsearch))
+        {
+            StateHasChanged();
+            return;
+        }
+        using (HttpClient client = new HttpClient())
+        {
+            client.BaseAddress = new Uri($"{NavigationManager.BaseUri}");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await localstorage.GetItemAsStringAsync("token"));
+            HttpResponseMessage response = await client.GetAsync($"api/Employee/SearchEmployee?search={txtsearch}");
+            if (response.IsSuccessStatusCode)
+            {
+                string contentrespose = await response.Content.ReadAsStringAsync();
+                clientlist = JsonConvert.DeserializeObject<employees[]>(contentrespose);
+                StateHasChanged();
+            }
+            else
+            {
+                Snackbar.Add($"Warning: {response.StatusCode}", Severity.Warning);
+                StateHasChanged();
+            }
+        }
+
+    }
+
+    
+
+    public async Task GetClient()
+    {
+        using (HttpClient client = new HttpClient())
+        {
+            client.BaseAddress = new Uri($"{NavigationManager.BaseUri}");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await localstorage.GetItemAsStringAsync("token"));
+            HttpResponseMessage response = await client.GetAsync($"api/Employee/Employee");
+            if (response.IsSuccessStatusCode)
+            {
+                string contentrespose = await response.Content.ReadAsStringAsync();
+                clientlist = JsonConvert.DeserializeObject<employees[]>(contentrespose);
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+              
+                NavigationManager.NavigateTo("/auth403");
+            }
+        }
+
+    }
+
+    async Task Clear()
+    {
+        _client.fname = "";
+        _client.mname = "";
+        _client.lname = "";
+        _client.address = "";
+        _client.contact = "";
+        _transaction = "save";
+        await GetClient();
+    }
+
+
+    private async Task ShowAlertAsync(string message)
+    {
+        await JSRuntime.InvokeVoidAsync("alert", message);
+    }
+
+
+
+    async Task Edit(int id)
+    {
+        _transaction = "update";
+        _client = clientlist.FirstOrDefault(c => c.clientid == id);
+
+
+    }
+
+    public string _transaction { get; set; }
+
+    public async Task Save()
+    {
+        if (_transaction == "save")
+        {
+
+            int i = 0;
+
+            try
+            {
+                var xclient = new client
+                    {
+                        clientid = _client.clientid,
+                        fname = _client.fname,
+                        mname = _client.mname,
+                        lname = _client.lname,
+                        address = _client.address,
+                        contact = _client.contact,
+
+                    };
+
+                using (HttpClient client = new HttpClient())
+                {
+                    client.BaseAddress = new Uri($"{NavigationManager.BaseUri}");
+                    var json = JsonConvert.SerializeObject(xclient);
+                    HttpContent content = new StringContent(json);
+                    content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+                    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await localstorage.GetItemAsStringAsync("token"));
+                    HttpResponseMessage response = await client.PostAsync($"api/Employee/AddEmployee", content).ConfigureAwait(false);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        string contentresponse = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        i = JsonConvert.DeserializeObject<int>(contentresponse);
+                        if (i > 0)
+                        {
+
+                            await ShowAlertAsync("Successfully Saved.");
+                            await InvokeAsync(StateHasChanged);
+                            await Clear();
+                            _transaction = "save";
+
+                        }
+                    }
+                    else
+                    {
+                        await ShowAlertAsync("Error.");
+
+                    }
+                }
+
+            }
+            catch (Exception)
+            {
+
+            }
+        }
+        else if (_transaction == "update")
+        {
+            int i = 0;
+
+            try
+            {
+                var xclient = new client
+                    {
+
+                        clientid = _client.clientid,
+                        fname = _client.fname,
+                        mname = _client.mname,
+                        lname = _client.lname,
+                        address = _client.address,
+                        contact = _client.contact,
+                    };
+
+                using (HttpClient client = new HttpClient())
+                {
+                    client.BaseAddress = new Uri($"{NavigationManager.BaseUri}");
+                    var json = JsonConvert.SerializeObject(xclient);
+                    HttpContent content = new StringContent(json);
+                    content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+                    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await localstorage.GetItemAsStringAsync("token"));
+                    HttpResponseMessage response = await client.PostAsync($"api/Employee/UpdateEmployee", content).ConfigureAwait(false);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        string contentresponse = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        i = JsonConvert.DeserializeObject<int>(contentresponse);
+                        if (i > 0)
+                        {
+
+                            await ShowAlertAsync("Successfully Updated.");
+                            await InvokeAsync(StateHasChanged);
+                            await Clear();
+                            _transaction = "save";
+
+                        }
+                    }
+                    else
+                    {
+                        await ShowAlertAsync("Error.");
+
+                    }
+                }
+
+            }
+            catch (Exception)
+            {
+
+            }
+        }
+
+    }
+}

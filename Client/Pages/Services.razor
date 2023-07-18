@@ -1,0 +1,335 @@
+﻿@page "/services"
+@using System.Net.Http
+@using System.Net.Http.Json
+@using System.Net.Http.Headers
+@using Newtonsoft.Json;
+@inject HttpClient Http
+@inject NavigationManager NavigationManager
+@inject ILocalStorageService localstorage
+@inject IJSRuntime JSRuntime
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+
+<br />
+<br />
+<p1 style="font-family:Tahoma; font-size:20px;">ADD NEW SERVICE</p1>
+<br />
+<br />
+<br />
+<MudCard Elevation="4">
+    <MudCardContent>
+ 
+        <MudTextField @bind-Value="_services.service" Variant="Variant.Text" Margin="MudBlazor.Margin.Dense" Label="Service Name" /> <br />
+        <MudTextField @bind-Value="_services.fee" Variant="Variant.Text" Margin="MudBlazor.Margin.Dense" Label="Price" /> <br />
+        <MudToolBar>
+            <MudSpacer />
+            <MudButton Variant="Variant.Outlined" Color="MudBlazor.Color.Secondary" OnClick="Clear">Clear</MudButton> &nbsp;
+            <MudButton Variant="Variant.Outlined" Color="MudBlazor.Color.Primary" OnClick="Save">Save</MudButton>
+        </MudToolBar>
+    </MudCardContent>
+</MudCard>
+
+<br /><br />
+<MudToolBar>
+    <MudButton Variant="Variant.Outlined" Color="MudBlazor.Color.Primary" @onclick="Refresh">Refresh</MudButton>
+    <MudSpacer />    <MudSpacer />    <MudSpacer />
+    <MudTextField @bind-Value="txtsearch"
+                    Clearable
+                  TextChanged="@SearchServices"
+                  Adornment="Adornment.End"
+                  AdornmentIcon="@Icons.Material.Filled.Search"
+                  Label="Search"
+                  Variant="Variant.Outlined"
+                  Margin="MudBlazor.Margin.Dense"
+                  Class="xsearch">
+    </MudTextField>
+    </MudToolBar>
+<MudTable Class="ma-5" Dense="true" Hover="true" Items="@servicelist" Elevation="4"
+          FixedHeader="@fixed_header" FixedFooter="@fixed_footer"
+          Height="@(fixed_header || fixed_footer ?"500px": "")">
+
+    <HeaderContent>
+        <MudTh>Service ID #</MudTh>
+        <MudTh>Service</MudTh>
+        <MudTh>Fee</MudTh>
+        <MudTh></MudTh>
+        <MudTh></MudTh>
+    </HeaderContent>
+
+    <RowTemplate>
+        <MudTd DataLabel="Service ID #">@context.serviceid</MudTd>
+        <MudTd DataLabel="Service">@context.service</MudTd>
+        <MudTd DataLabel="Fee">@context.fee</MudTd>
+
+        <MudTd>
+            <MudFab Color="MudBlazor.Color.Primary" StartIcon="@Icons.Material.Filled.Edit" Class="btn2"
+            @onclick="(e => Edit(context.serviceid))" Size="MudBlazor.Size.Small" />
+        </MudTd>
+        <MudTd>
+            <MudFab Color="MudBlazor.Color.Secondary" StartIcon="@Icons.Material.Filled.Delete" Class="btn2"
+                    @onclick="(e => Delete(context.serviceid))" Size="MudBlazor.Size.Small" />
+        </MudTd>
+    </RowTemplate>
+
+    <PagerContent>
+        <MudTablePager PageSizeOptions="new int[]{10, 20, 50, 100, 200}" />
+    </PagerContent>
+</MudTable>
+
+
+<style>
+    .btn2{
+        margin-right: -6em;
+    }
+</style>
+
+@code
+{
+    string txtsearch;
+    [Parameter]
+    public xservices _services { get; set; } = new xservices();
+    xservices[]? servicelist;
+
+    bool fixed_header = true;
+    bool fixed_footer = false;
+
+    private async Task Refresh()
+    {
+        await GetService();
+        await InvokeAsync(() => StateHasChanged());
+    }
+
+    public string _transaction { get; set; }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+         
+            await GetService();
+            await InvokeAsync(() => StateHasChanged());
+            _transaction = "save";
+
+        }
+    }
+
+
+    private async Task SearchServices()
+    {
+        if (string.IsNullOrWhiteSpace(txtsearch))
+        {
+            StateHasChanged();
+            return;
+        }
+        using (HttpClient client = new HttpClient())
+        {
+            client.BaseAddress = new Uri($"{NavigationManager.BaseUri}");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await localstorage.GetItemAsStringAsync("token"));
+            HttpResponseMessage response = await client.GetAsync($"api/Services/SearchService?search={txtsearch}");
+            if (response.IsSuccessStatusCode)
+            {
+                string contentrespose = await response.Content.ReadAsStringAsync();
+                servicelist = JsonConvert.DeserializeObject<xservices[]>(contentrespose);
+                StateHasChanged();
+            }
+            else
+            {
+                Snackbar.Add($"Warning: {response.StatusCode}", Severity.Warning);
+                StateHasChanged();
+            }
+        }
+    }
+    public async Task GetService()
+    {
+        Http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await localstorage.GetItemAsStringAsync("token"));
+        servicelist = await Http.GetFromJsonAsync<xservices[]>($"api/Services/Services");
+        _transaction = "save";
+
+    }
+
+    async Task Clear()
+    {
+        _services.service = "";
+        _services.fee = "0.00";
+        await GetService();
+    }
+
+    async Task Edit (int id)
+    {
+        _services = servicelist.FirstOrDefault(c => c.serviceid == id);
+        _transaction = "update";
+    }
+
+    async Task Delete(int id)
+    {
+        bool? result = await Dialog.ShowMessageBox(
+        "Delete",
+        "Do You Want To Delete This Record?",
+        yesText: "Delete!", cancelText: "Cancel");
+
+        if (result ?? false)
+        {
+            _services = servicelist.FirstOrDefault(c => c.serviceid == id);
+
+            int i = 0;
+
+            try
+            {
+                var xservices = new xservices
+                    {
+                        serviceid = _services.serviceid,
+                        service = _services.service,
+                        fee = _services.fee,
+                    };
+
+                using (HttpClient client = new HttpClient())
+                {
+                    client.BaseAddress = new Uri($"{NavigationManager.BaseUri}");
+                    var json = JsonConvert.SerializeObject(xservices);
+                    HttpContent content = new StringContent(json);
+                    content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+                    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await localstorage.GetItemAsStringAsync("token"));
+                    HttpResponseMessage response = await client.PostAsync($"api/Services/DeleteServices", content).ConfigureAwait(false);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        string contentresponse = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        i = JsonConvert.DeserializeObject<int>(contentresponse);
+                        if (i > 0)
+                        {
+
+                            Snackbar.Add($"Done: Successfully Deleted", Severity.Success);
+                            await InvokeAsync(StateHasChanged);
+                            await Clear();
+                            await GetService();
+                            StateHasChanged();
+                        }
+                    }
+                    else
+                    {
+                      
+                        Snackbar.Add($"Warning: {response.ReasonPhrase}", Severity.Warning);
+                        StateHasChanged();
+                    }
+                }
+            }
+            catch (Exception)
+            {
+
+            }
+        }
+    }
+
+    async Task Save()
+    {
+        if (_transaction == "save")
+        {
+
+            int i = 0;
+
+            try
+            {
+                var xxservices = new xservices
+                    {
+                        serviceid = _services.serviceid,
+                        service = _services.service,
+                        fee = _services.fee,
+                    };
+
+                using (HttpClient client = new HttpClient())
+                {
+                    client.BaseAddress = new Uri($"{NavigationManager.BaseUri}");
+                    var json = JsonConvert.SerializeObject(xxservices);
+                    HttpContent content = new StringContent(json);
+                    content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+                    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await localstorage.GetItemAsStringAsync("token"));
+                    HttpResponseMessage response = await client.PostAsync($"api/Services/AddServices", content).ConfigureAwait(false);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        string contentresponse = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        i = JsonConvert.DeserializeObject<int>(contentresponse);
+                        if (i > 0)
+                        {
+
+                            await ShowAlertAsync("Successfully Saved.");
+                            await InvokeAsync(StateHasChanged);
+                            await Clear();
+                            await GetService();
+                            _transaction = "save";
+
+                        }
+                    }
+                    else
+                    {
+                        await ShowAlertAsync("Error.");
+
+                    }
+                }
+
+            }
+            catch (Exception)
+            {
+
+            }
+        }
+        else if (_transaction == "update")
+        {
+            int i = 0;
+
+            try
+            {
+                var xxservices = new xservices
+                    {
+                        serviceid = _services.serviceid,
+                        service = _services.service,
+                        fee = _services.fee,
+                    };
+
+                using (HttpClient client = new HttpClient())
+                {
+                    client.BaseAddress = new Uri($"{NavigationManager.BaseUri}");
+                    var json = JsonConvert.SerializeObject(xxservices);
+                    HttpContent content = new StringContent(json);
+                    content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+                    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await localstorage.GetItemAsStringAsync("token"));
+                    HttpResponseMessage response = await client.PostAsync($"api/Services/UpdateServices", content).ConfigureAwait(false);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        string contentresponse = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        i = JsonConvert.DeserializeObject<int>(contentresponse);
+                        if (i > 0)
+                        {
+
+                            await ShowAlertAsync("Successfully Updated.");
+                            await InvokeAsync(StateHasChanged);
+                            await Clear();
+                            await GetService();
+                            _transaction = "save";
+
+                        }
+                    }
+                    else
+                    {
+                        await ShowAlertAsync("Error.");
+
+                    }
+                }
+
+            }
+            catch (Exception)
+            {
+
+            }
+        }
+    }
+
+
+    private async Task ShowAlertAsync(string message)
+    {
+        await JSRuntime.InvokeVoidAsync("alert", message);
+    }
+}

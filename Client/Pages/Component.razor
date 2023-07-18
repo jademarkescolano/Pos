@@ -1,0 +1,63 @@
+﻿@page "/test"
+@inject HttpClient httpClient
+@using System.Linq
+
+<MudSelect MultiSelection="true" @bind-SelectedValues="options" T="xservices" Label="Select Service"
+           AdornmentIcon="@Icons.Material.Filled.Search" AnchorOrigin="Origin.BottomCenter">
+    @if (states != null)
+    {
+        @foreach (var state in states)
+        {
+            <MudSelectItem T="xservices" Value="@state">@state.service</MudSelectItem>
+        }
+    }
+</MudSelect>
+
+<MudGrid Class="mt-3 px-4">
+    <MudItem xs="6">
+        <MudText Typo="Typo.body2" Class="pl-4">
+            Selected services:
+            <br />
+            @foreach (var option in options)
+            {
+                <span>@option.ToString()</span>
+
+                <br />
+            }
+        </MudText>
+    </MudItem>
+    <MudItem xs="6">
+        <MudText Typo="Typo.body2" Class="pl-4">
+            Total fee: @TotalFee.ToString("0.00")
+        </MudText>
+    </MudItem>
+</MudGrid>
+
+
+@code {
+    private double TotalFee => options.Sum(o => o._fee);
+    public class xservices
+    {
+        public int serviceid { get; set; }
+        public string service { get; set; }
+        public double _fee { get; set; }
+        public string fee
+        {
+            get { return _fee.ToString("0.00"); }
+            set { _fee = double.Parse(value); }
+        }
+
+        public override string ToString()
+        {
+            return service;
+        }
+    }
+
+    private IEnumerable<xservices> options { get; set; } = new HashSet<xservices>();
+    private xservices[] states;
+
+    protected override async Task OnInitializedAsync()
+    {
+        states = await httpClient.GetFromJsonAsync<xservices[]>("api/Services/Services");
+    }
+}

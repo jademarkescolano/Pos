@@ -1,0 +1,573 @@
+﻿@page "/clientservice"
+@using System.Net.Http
+@using System.Net.Http.Json
+@using System.Net.Http.Headers
+@using Newtonsoft.Json;
+@inject HttpClient Http
+@inject NavigationManager NavigationManager
+@inject ILocalStorageService localstorage
+@inject IJSRuntime JSRuntime
+@inject ISnackbar Snackbar
+
+
+<br />
+<br />
+<MudCard Elevation="1">
+    <MudCardContent>
+        <div class="container">
+            <div class="column">
+                <!-- content for column 1 -->
+                <p1 style="font-family:Tahoma; font-size:20px;">Select client & service</p1>
+                <br /> <br />
+                <div class="card">
+                    <div class="card-body">
+
+
+                        <MudTextField Clearable @bind-Value="@_clientservice.date" Label="Select Date" Variant="Variant.Text"
+                                      Margin="MudBlazor.Margin.Dense" InputType="InputType.Date" Format="yyyy-MM-dd"></MudTextField>
+
+                        <MudAutocomplete Clearable T="client" Label="Search Client" @bind-Value="_client" Variant="Variant.Text" Margin="MudBlazor.Margin.Dense"
+                                         Adornment="Adornment.End" AdornmentColor="MudBlazor.Color.Success"
+                                         SearchFunc="@Search" ToStringFunc="@(e=> e==null?null : $"{e.fullname}")" Strict="false">
+                        </MudAutocomplete>
+
+                        @if (_hide)
+                        {
+                            <MudTextField @bind-Value="_client.clientid" Variant="Variant.Text" Margin="MudBlazor.Margin.Dense" Label="Client ID #" />
+                            <MudTextField @bind-Value="_client.fullname" Variant="Variant.Text" Margin="MudBlazor.Margin.Dense" Label="Client Name" />
+                        }
+                        <MudAutocomplete Clearable T="employees" Label="Search Employee" @bind-Value="_employee" Variant="Variant.Text" Margin="MudBlazor.Margin.Dense"
+                                         Adornment="Adornment.End" AdornmentColor="MudBlazor.Color.Success"
+                                         SearchFunc="@EmpSearch" ToStringFunc="@(e=> e==null?null : $"{e.fullname}")" Strict="false">
+                        </MudAutocomplete>
+
+                        @if (_hide)
+                        {
+                            <MudTextField @bind-Value="_employee.clientid" Variant="Variant.Text" Margin="MudBlazor.Margin.Dense" Label="Client ID #" />
+                            <MudTextField @bind-Value="_employee.fullname" Variant="Variant.Text" Margin="MudBlazor.Margin.Dense" Label="Client Name" />
+                        }
+
+                        <MudSelect MultiSelection="true" @bind-SelectedValues="options" T="xservices" Label="Select Service/s" Variant="Variant.Text" MultiSelectionTextFunc="@(new Func<List<string>, string>(GetMultiSelectionText))"
+                                   AdornmentColor="MudBlazor.Color.Success" Margin="MudBlazor.Margin.Dense">
+                            @if (_services != null)
+                            {
+                                @foreach (var state in _services)
+                                {
+                                    <MudSelectItem T="xservices" Value="@state">@state.service</MudSelectItem>
+                                }
+                            }
+                        </MudSelect>
+                        <br />
+                    </div>
+                </div>
+                <MudToolBar>
+                    <MudSpacer />
+                    <MudButton Variant="Variant.Outlined" Color="MudBlazor.Color.Success" OnClick="Summary">View Total</MudButton>
+                </MudToolBar>
+
+            </div>
+
+            <div class="column">
+                <!-- content for column 2 -->
+                <p1 style="font-family:Tahoma; font-size:20px;">Client total fees</p1>
+                <br /> <br />
+                <div class="card">
+                    <div class="card-body">
+
+
+                        <MudTextField @bind-Value="_clientservice.receiptno" Label="Receipt #" Variant="Variant.Text" Adornment="Adornment.Start" Margin="MudBlazor.Margin.Dense"
+                                      AdornmentColor="MudBlazor.Color.Success" ReadOnly />
+
+                        <MudTextField @bind-Value="_clientservice.date" Label="Date" Variant="Variant.Text" Adornment="Adornment.Start" Margin="MudBlazor.Margin.Dense"
+                                      AdornmentColor="MudBlazor.Color.Success" ReadOnly/>
+                        @if (_hide)
+                        {
+                            <MudTextField @bind-Value="_clientservice.clientid" Label="Client ID #" Variant="Variant.Text" Adornment="Adornment.Start" Margin="MudBlazor.Margin.Dense"
+                                          AdornmentColor="MudBlazor.Color.Success" ReadOnly />
+                            <MudTextField @bind-Value="_clientservice.empid" Label="Client ID #" Variant="Variant.Text" Adornment="Adornment.Start" Margin="MudBlazor.Margin.Dense"
+                                          AdornmentColor="MudBlazor.Color.Success" ReadOnly />
+                        }
+                       
+                        <MudTextField @bind-Value="_clientservice.name" Label="Client Name" Variant="Variant.Text" Adornment="Adornment.Start" Margin="MudBlazor.Margin.Dense"
+                                      AdornmentColor="MudBlazor.Color.Success" ReadOnly /> <br />
+
+                        <MudTextField @bind-Value="_clientservice.employee" Label="Employee Name" Variant="Variant.Text" Adornment="Adornment.Start" Margin="MudBlazor.Margin.Dense"
+                                      AdornmentColor="MudBlazor.Color.Success" ReadOnly /> <br />
+
+                        <MudTextField T="string" Lines="5" @bind-Value="_clientservice.service" Label="Service/s" Variant="Variant.Outlined" Margin="MudBlazor.Margin.Dense"
+                                                        ReadOnly /> <br />
+
+                        <MudTextField @bind-Value="_clientservice.fee" Label="Total fee" Variant="Variant.Text" Adornment="Adornment.Start" Margin="MudBlazor.Margin.Dense"
+                                      AdornmentColor="MudBlazor.Color.Success" ReadOnly />
+                        <br />
+
+                    </div>
+                </div>
+                <MudToolBar>
+                    <MudSpacer />
+                    <MudButton Variant="Variant.Outlined" Color="MudBlazor.Color.Secondary" OnClick="Clear">Clear</MudButton>&nbsp;
+                    @if (isEditMode)
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="MudBlazor.Color.Success" OnClick="Update">Update</MudButton>
+                    }
+                    else
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="MudBlazor.Color.Success" OnClick="Save">Save</MudButton>
+                    }
+                </MudToolBar>
+            </div>
+        </div>
+
+    </MudCardContent>
+</MudCard>
+
+
+<br />
+<br />
+<MudToolBar>
+    <MudSpacer />  <MudSpacer />  <MudSpacer />
+
+    <MudDateRangePicker @ref="_picker" Clearable PickerVariant="PickerVariant.Dialog" Variant="Variant.Outlined" Margin="MudBlazor.Margin.Dense" DateRange="_dateRange" DateRangeChanged="@(value =>
+            { _dateRange = value; SearchDate(); })" DateFormat="yyyy-MM-dd" Style="display:none" />
+
+    <MudFab StartIcon="@Icons.Material.Filled.DateRange" Size="MudBlazor.Size.Small" Label="Select Date To Export" @onclick="OpenDateRange" />
+
+    &nbsp;&nbsp;
+    <MudButton Color="MudBlazor.Color.Tertiary" @onclick="Export">Export to excel</MudButton>
+</MudToolBar>
+
+<MudToolBar>
+    <MudButton Variant="Variant.Outlined" Color="MudBlazor.Color.Primary" @onclick="Refresh">Refresh</MudButton>
+    <MudSpacer />    <MudSpacer />    <MudSpacer />
+    <MudTextField @bind-Value="txtsearch"
+                    Clearable
+                  TextChanged="@SearchClient"
+                  Adornment="Adornment.End"
+                  AdornmentIcon="@Icons.Material.Filled.Search"
+                  Label="Search"
+                  Variant="Variant.Outlined"
+                  Margin="MudBlazor.Margin.Dense"
+                  Class="xsearch">
+    </MudTextField>
+</MudToolBar>
+
+
+<MudTable Class="ma-5" Dense="true" Hover="true" Items="@clientlist" Elevation="4"
+          FixedHeader="@fixed_header" FixedFooter="@fixed_footer"
+          Height="@(fixed_header || fixed_footer ?"500px": "")">
+
+    <HeaderContent>
+        <MudTh>
+            <MudTableSortLabel SortBy="new Func<clientservices, object>(c => c.date)" InitialDirection="MudBlazor.SortDirection.Descending">
+                Date & Time
+            </MudTableSortLabel>
+        </MudTh>
+        <MudTh>Client Name</MudTh>
+        <MudTh>Services</MudTh>
+        <MudTh>Employee Name</MudTh>
+        <MudTh>Total Fee</MudTh>
+        <MudTh>Receipt #</MudTh>
+        <MudTh></MudTh>
+        <MudTh></MudTh>
+    </HeaderContent>
+
+    <RowTemplate>
+        <MudTd DataLabel="Date & Time">@context.date</MudTd>
+        <MudTd DataLabel="Client Name">@context.name</MudTd>
+         <MudTd> @foreach (var service in @context.service.Split(','))
+        {
+            <div>@service</div>
+        } </MudTd>
+        <MudTd DataLabel="Employee Name">@context.employee</MudTd>
+        <MudTd DataLabel="Total Fee">@context.fee</MudTd>
+        <MudTd DataLabel="Receipt #">@context.receiptno</MudTd>
+        <MudTd>
+            <MudFab Color="MudBlazor.Color.Primary" StartIcon="@Icons.Material.Filled.Edit" @onclick="(e => { Edit(context.clientserviceid); isEditMode = true; })" Size="MudBlazor.Size.Small" />
+        </MudTd>
+        <MudTd>
+            <MudFab Color="MudBlazor.Color.Tertiary" StartIcon="@Icons.Material.Filled.Print" @onclick="(e => { Print(context.clientserviceid); isEditMode = true; })" Size="MudBlazor.Size.Small" />
+        </MudTd>
+
+    </RowTemplate>
+
+    <PagerContent>
+        <MudTablePager PageSizeOptions="new int[]{10, 20, 50, 100, 200}" />
+    </PagerContent>
+</MudTable>
+
+
+
+
+<style>
+    .container {
+        display: flex;
+    }
+
+    .column {
+        flex: 1;
+        padding: 10px;
+        box-sizing: border-box;
+    }
+
+</style>
+
+
+@code
+{
+    async Task OpenDateRange()
+    {
+        _picker?.Open();
+    }
+
+    bool isEditMode = false;
+
+    private async Task GenerateRandomNumber()
+    {
+        Random random = new Random();
+        int randomNumber = random.Next(100000, 999999);
+        _clientservice.receiptno = randomNumber.ToString();
+    }
+
+  
+
+
+    bool hide = true;
+    //MudBlazor Date Range Picker
+    private MudDateRangePicker? _picker;
+    private MudBlazor.DateRange _dateRange = new MudBlazor.DateRange();
+
+    private string value { get; set; } = "Nothing selected";
+
+    private bool multiselectionTextChoice;
+
+
+    async Task Print(int id)
+    {
+        string path = $"receipt/{id}";
+        await OpenInNewTab(path);
+    }
+
+    private async ValueTask OpenInNewTab(string url)
+    {
+        await JSRuntime.InvokeVoidAsync("open", url, "_blank");
+    }
+
+
+    private string GetMultiSelectionText(List<string> selectedValues)
+    {
+        if (multiselectionTextChoice)
+        {
+            return $"Selected state{(selectedValues.Count > 1 ? "s" : "")}: {string.Join(", ", selectedValues.Select(x => x))}";
+        }
+        else
+        {
+            return $"{selectedValues.Count} service/s{(selectedValues.Count > 1 ? "" : "")} selected";
+        }
+    }
+
+    async Task SearchDate()
+    {
+        using (HttpClient client = new HttpClient())
+        {
+            client.BaseAddress = new Uri($"{NavigationManager.BaseUri}");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await localstorage.GetItemAsStringAsync("token"));
+            HttpResponseMessage response = await client.GetAsync($"api/ClientService/SearchDateClientService?start={_dateRange.Start.Value:yyyy-MM-dd}&end={_dateRange.End.Value:yyyy-MM-dd}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                string contentrespose = await response.Content.ReadAsStringAsync();
+                clientlist = JsonConvert.DeserializeObject<clientservices[]>(contentrespose);
+            }
+            else
+            {
+                Snackbar.Add($"Warning: {response.StatusCode}", Severity.Warning);
+            }
+        }
+        StateHasChanged();
+
+    }
+
+    async Task Export()
+    {
+        if (_dateRange.Start == null || _dateRange.End == null)
+        {
+
+            Snackbar.Add($"Warning: Start or end date not set!", Severity.Warning);
+        }
+        else
+        {
+            NavigationManager.NavigateTo($"{NavigationManager.BaseUri}api/ClientService/ClientServiceReport?start={_dateRange.Start.Value:yyyy-MM-dd}&end={_dateRange.End.Value:yyyy-MM-dd}", true);
+        }
+    }
+
+    async Task Summary()
+    {
+        _clientservice.clientid = _client.clientid;
+        _clientservice.empid = _employee.clientid;
+        _clientservice.name = _client.fullname;
+        _clientservice.employee = _employee.fullname;
+        _clientservice.date = _clientservice.date;
+        _clientservice.service = string.Join($",{Environment.NewLine} ", options.Select(o => $"{o.service} ({o.fee})"));
+        _clientservice.fee = TotalFee.ToString("0.00");
+    }
+
+
+    private string txtsearch;
+    private bool _hide = false;
+
+    [Parameter]
+    public clientservices _clientservice { get; set; } = new clientservices();
+    clientservices[]? clientlist;
+    private client _client { get; set; } = new client();
+    private employees _employee { get; set; } = new employees();
+
+
+    private double TotalFee => options.Sum(o => o._fee);
+    private IEnumerable
+       <xservices> options
+    { get; set; } = new HashSet<xservices>();
+    private xservices[] _services;
+
+
+    public class xservices
+    {
+        public int serviceid { get; set; }
+        public string service { get; set; }
+        public double _fee { get; set; }
+        public string fee
+        {
+            get { return _fee.ToString("0.00"); }
+            set { _fee = double.Parse(value); }
+        }
+
+        public override string ToString()
+        {
+            return service;
+        }
+    }
+
+    private async Task SearchClient()
+    {
+
+
+        if (string.IsNullOrWhiteSpace(txtsearch))
+        {
+            StateHasChanged();
+            return;
+        }
+        using (HttpClient client = new HttpClient())
+        {
+            client.BaseAddress = new Uri($"{NavigationManager.BaseUri}");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await localstorage.GetItemAsStringAsync("token"));
+            HttpResponseMessage response = await client.GetAsync($"api/ClientService/SearchClientService?search={txtsearch}");
+            if (response.IsSuccessStatusCode)
+            {
+                string contentrespose = await response.Content.ReadAsStringAsync();
+                clientlist = JsonConvert.DeserializeObject<clientservices[]>(contentrespose);
+                StateHasChanged();
+            }
+            else
+            {
+                Snackbar.Add($"Warning: {response.StatusCode}", Severity.Warning);
+                StateHasChanged();
+            }
+        }
+
+
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _services = await Http.GetFromJsonAsync<xservices[]>("api/Services/Services");
+        await GenerateRandomNumber();
+
+    }
+
+    private async Task Refresh()
+    {
+        await GetClientService();
+        await InvokeAsync(() => StateHasChanged());
+        await GenerateRandomNumber();
+
+    }
+    bool fixed_header = true;
+    bool fixed_footer = false;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await GetClientService();
+            await InvokeAsync(() => StateHasChanged());
+
+
+        }
+    }
+    private async Task<IEnumerable<client>> Search(string value)
+    {
+
+        HttpClient httpClient = new HttpClient();
+        httpClient.BaseAddress = new Uri($"{NavigationManager.BaseUri}");
+        var client = await httpClient.GetFromJsonAsync<List<client>>($"api/Client/SearchClient?search={value}");
+        return client;
+
+    }
+
+    private async Task<IEnumerable<employees>> EmpSearch(string value)
+    {
+
+        HttpClient httpClient = new HttpClient();
+        httpClient.BaseAddress = new Uri($"{NavigationManager.BaseUri}");
+        var client = await httpClient.GetFromJsonAsync<List<employees>>($"api/Employee/SearchEmployee?search={value}");
+        return client;
+
+    }
+
+
+    public async Task GetClientService()
+    {
+        Http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await localstorage.GetItemAsStringAsync("token"));
+        clientlist = await Http.GetFromJsonAsync<clientservices[]>($"api/ClientService/ClientService");
+    }
+
+    private async Task Clear()
+
+    {
+        _clientservice.date = DateTime.Now;
+        _clientservice.clientid = 0;
+        _clientservice.name = string.Empty;
+        _clientservice.empid = 0;
+        _clientservice.employee = string.Empty;
+        _clientservice.service = string.Empty;
+        _clientservice.fee = "0";
+        _client.clientid = 0;
+        _client.fullname = string.Empty;
+        _employee.fullname = string.Empty;
+        options = new HashSet<xservices>();
+        await Refresh();
+
+    }
+
+    private async Task ShowAlertAsync(string message)
+    {
+        await JSRuntime.InvokeVoidAsync("alert", message);
+    }
+
+    async Task Edit(int id)
+    {
+        _clientservice = clientlist.FirstOrDefault(c => c.clientserviceid == id);
+        _client.clientid = _clientservice.clientid;
+        _client.fullname = _clientservice.name;
+        _employee.clientid = _clientservice.empid;
+        _employee.fullname = _clientservice.employee;
+
+    }
+
+    public async Task Save()
+    {
+        try
+        {
+            var xclient = new clientservices
+                {
+                    receiptno = _clientservice.receiptno,
+                    date = _clientservice.date,
+                    clientserviceid = _clientservice.clientserviceid,
+                    clientid = _clientservice.clientid,
+                    empid = _clientservice.empid,
+                    employee = _clientservice.employee,
+                    name = _clientservice.name,
+                    service = _clientservice.service,
+                    fee = _clientservice.fee
+                };
+
+            using (HttpClient client = new HttpClient())
+            {
+                client.BaseAddress = new Uri(NavigationManager.BaseUri);
+                var json = JsonConvert.SerializeObject(xclient);
+                HttpContent content = new StringContent(json);
+                content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await localstorage.GetItemAsStringAsync("token"));
+                HttpResponseMessage response = await client.PostAsync("api/ClientService/AddClientService", content).ConfigureAwait(false);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    string contentresponse = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    int i = JsonConvert.DeserializeObject<int>(contentresponse);
+                    if (i > 0)
+                    {
+                        await ShowAlertAsync("Successfully Saved.");
+                        await InvokeAsync(StateHasChanged);
+                        _clientservice = new clientservices();
+                        await Clear();
+                        await Refresh();
+                       
+                    }
+                }
+                else
+                {
+                    await ShowAlertAsync("Error.");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // Handle the exception appropriately
+        }
+    }
+
+
+    public async Task Update()
+    {
+        try
+        {
+            var xclient = new clientservices
+                {
+                    receiptno = _clientservice.receiptno,
+                    date = _clientservice.date,
+                    clientserviceid = _clientservice.clientserviceid,
+                    clientid = _clientservice.clientid,
+                    empid = _clientservice.empid,
+                    employee = _clientservice.employee,
+                    name = _clientservice.name,
+                    service = _clientservice.service,
+                    fee = _clientservice.fee
+                };
+
+            using (HttpClient client = new HttpClient())
+            {
+                client.BaseAddress = new Uri(NavigationManager.BaseUri);
+                var json = JsonConvert.SerializeObject(xclient);
+                HttpContent content = new StringContent(json);
+                content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await localstorage.GetItemAsStringAsync("token"));
+                HttpResponseMessage response = await client.PutAsync("api/ClientService/UpdateClientService", content).ConfigureAwait(false);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    string contentresponse = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    int i = JsonConvert.DeserializeObject<int>(contentresponse);
+                    if (i > 0)
+                    {
+                        await ShowAlertAsync("Successfully Updated.");
+                        await InvokeAsync(StateHasChanged);
+                        await Clear();
+                        await Refresh();
+                        isEditMode = false;
+                        _clientservice = new clientservices(); 
+                    }
+                }
+                else
+                {
+                    await ShowAlertAsync("Error.");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            //
+        }
+    }
+
+
+}

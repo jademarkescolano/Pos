@@ -1,0 +1,379 @@
+﻿@page "/"
+@using Pos.Shared
+@layout LoginLayout
+@inject NavigationManager NavigationManager
+@inject Blazored.LocalStorage.ILocalStorageService localStorage
+@inject ISnackbar Snackbar
+@inject HttpClient http
+@using System.Net.Http.Headers
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet" />
+</head>
+<body>
+    <div class="container">
+        <div class="img">
+            <img src="salon1.png" />
+        </div>
+        <div class="login-container">
+            <form>
+                <img class="avator" src="logo2.png" />
+                <h2>Anne's, Beaute Salon</h2>
+                <div class="input-div">
+                    <div class="i">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div>
+                  
+                        <input class="input" type="text" @bind-value="username" placeholder="Username"/>
+                    </div>
+                </div>
+                <div class="input-div">
+                    <div class="i">
+                        <i class="fas fa-lock"></i>
+                    </div>
+                    <div>
+
+                        <input class="input" type="password" @bind-value="password" placeholder="Password" />
+                    </div>
+                </div>
+                <input type="button" class="btn" value="Login" @onclick="Login" />
+            </form>
+        </div>
+    </div>
+</body>
+</html>
+
+@code {
+    string? username, password, message;
+    List<user> xuser;
+    [Parameter] public string ADMIN { get; set; } = "";
+
+    public async Task Login()
+    {
+        message = "";
+        xuser = new List<user>();
+        using (HttpClient client = new HttpClient())
+        {
+            client.BaseAddress = new Uri($"{NavigationManager.BaseUri}");
+            HttpResponseMessage json = await client.GetAsync($"api/User/Login?user={username}&pwd={password}");
+            if (json.IsSuccessStatusCode)
+            {
+                string content = await json.Content.ReadAsStringAsync();
+                List<user> code = JsonConvert.DeserializeObject<List<user>>(content);
+
+                xuser.Add(new user()
+                    {
+                        userid = code[0].userid,
+                        token = code[0].token,
+                        name = code[0].name,
+                        accounttype = code[0].accounttype
+                    });
+
+                ADMIN = code[0].name;
+            }
+
+        }
+        if (xuser[0].token != null)
+        {
+            await localStorage.SetItemAsStringAsync("token", xuser[0].accounttype);
+            await localStorage.SetItemAsStringAsync("token", xuser[0].token);
+          
+        
+            if (xuser[0].accounttype == "Admin")
+            {
+                NavigationManager.NavigateTo("/dashboard");
+            }
+            else
+            {
+                NavigationManager.NavigateTo("/clientservice");
+            }
+        }
+        else
+        {
+            Snackbar.Add($"Invalid Username and Password", Severity.Error);
+        }
+    }
+
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            Login();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var token = await localStorage.GetItemAsync<string>("token");
+            if (!string.IsNullOrEmpty(token))
+            {
+                http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                NavigationManager.NavigateTo("/dashboard");
+            }
+        }
+    }
+
+}
+
+<style>
+  /*=======================================================
+	
+                   G o o d L u c k
+
+=========================================================*/
+
+* {
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Verdana, Geneva, Tahoma, sans-serif;
+}
+
+.container {
+  width: 100vw;
+  height: 100vh;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-gap: 7rem;
+  padding: 0 2rem;
+}
+.img {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+.img img {
+  width: 500px;
+}
+.login-container {
+  display: flex;
+  align-items: center;
+  text-align: center;
+}
+
+.avator {
+  width: 100px;
+}
+
+form {
+  width: 360px;
+}
+
+form h2 {
+  font-size: 2.9rem;
+  text-transform: uppercase;
+  letter-spacing: 5px;
+  margin: 15px 0;
+  color: #333;
+}
+
+.input-div {
+  position: relative;
+  display: grid;
+  grid-template-columns: 7% 93%;
+  margin: 25px 0;
+  padding: 5px 0;
+  border-bottom: 2px solid #d9d9d9;
+}
+.input-div:after,
+.input-div::before {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  width: 0;
+  height: 2px;
+  background-color: #5557ec;
+  transition: 0.3s;
+}
+
+.input-div:after {
+  right: 50%;
+}
+.input-div::before {
+  left: 50%;
+}
+.input-div.focus .i i {
+  color: #5557ec;
+}
+.input-div.focus div h5 {
+  top: -5px;
+  font-size: 15px;
+}
+.input-div.focus:after,
+.input-div.focus:before {
+  width: 50%;
+}
+.input-div.one {
+  margin-top: 0;
+}
+.input-div.two {
+  margin-top: 4px;
+}
+
+.i {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.i i {
+  color: #d9d9d9;
+  transition: 0.3s;
+}
+
+.input-div > div {
+  position: relative;
+  height: 45px;
+}
+
+.input-div > div h5 {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #999;
+  font-size: 18px;
+  transition: 0.3s;
+}
+
+.input {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  border: none;
+  outline: none;
+  background: none;
+  padding: 0.5rem 0.7rem;
+  font-size: 1.2rem;
+  color: #555;
+  font-family: Verdana, Geneva, Tahoma, sans-serif;
+}
+
+a {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  color: #999;
+  font-size: 0.9rem;
+  transition: 0.3s;
+}
+a:hover {
+  color: #5557ec;
+}
+.btn {
+  display: block;
+  width: 100%;
+  height: 50px;
+  border-radius: 25px;
+  margin: 1rem 0;
+  font-size: 1.2rem;
+  outline: none;
+  border: none;
+  background-image: linear-gradient(to right, #5557ec, #3134db, #1e2097);
+  cursor: pointer;
+  color: #fff;
+  font-family: Verdana, Geneva, Tahoma, sans-serif;
+  background-size: 200%;
+  text-transform: uppercase;
+  transition: 0.5s;
+}
+
+.btn:hover {
+  background-position: right;
+}
+
+footer {
+  width: 100%;
+  background-color: #32323267;
+  color: #f2f2f2;
+  height: 8vh;
+  text-align: center;
+  padding-top: 3vh;
+  padding-bottom: 1vh;
+}
+/* important part for any devices */
+@@media screen and (max-width: 1050px) {
+  .container {
+    grid-gap: 5rem;
+  }
+  body {
+    background-color: rgb(86, 153, 216);
+  }
+  form h2 {
+    color: whitesmoke;
+  }
+  .input-div > div h5 {
+    color: snow;
+  }
+  a {
+    color: snow;
+  }
+}
+
+@@media screen and (max-width: 1000px) {
+  form {
+    width: 290px;
+  }
+  form h2 {
+    font-size: 2.4rem;
+    margin: 8px 0;
+  }
+  .img img {
+    width: 400px;
+  }
+  body {
+    background-color: blueviolet;
+  }
+  form h2 {
+    color: whitesmoke;
+  }
+  .input-div > div h5 {
+    color: snow;
+  }
+  a {
+    color: snow;
+  }
+}
+@@media screen and (max-width: 900px) {
+  .img {
+    display: none;
+  }
+  .container {
+    grid-template-columns: 1fr;
+  }
+
+  .login-container {
+    justify-content: center;
+  }
+  footer {
+    width: auto;
+    height: auto;
+  }
+  body {
+    background-color: black;
+  }
+  form h2 {
+    color: whitesmoke;
+  }
+  .input-div > div h5 {
+    color: snow;
+  }
+  a {
+    color: snow;
+  }
+}
+
+/*=========== T H A N K   Y O U =============*/
+</style>
